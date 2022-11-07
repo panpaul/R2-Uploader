@@ -8,12 +8,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"io"
 	"log"
 	"math/rand"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -25,6 +28,28 @@ func main() {
 
 	args := os.Args[1:]
 	for _, img := range args {
+		if strings.HasPrefix(img, "http") {
+			file, err := os.CreateTemp(os.TempDir(), "r2_uploader_*_"+filepath.Ext(img))
+			if err != nil {
+				log.Fatalf("Failed to create temp file: %v", err)
+			}
+
+			resp, err := http.Get(img)
+			if err != nil {
+				log.Fatalf("Failed to download image: %v", err)
+			}
+
+			_, err = io.Copy(file, resp.Body)
+			if err != nil {
+				log.Fatalf("Failed to copy image: %v", err)
+			}
+
+			_ = resp.Body.Close()
+			_ = file.Close()
+
+			img = file.Name()
+		}
+
 		fmt.Println(r2.Upload(&r2.config, img))
 	}
 }
